@@ -176,7 +176,7 @@ def train(args):
 
             content_loss = args.content_weight * mse_loss(features_y[1], f_xc_c)
             laploss = lap_loss.LapLoss()
-            laplacian_loss = laploss(xc,features_style)
+            laplacian_loss = laploss(xc,y)
             laplacian_weight = 2
 
             style_loss = 0.
@@ -189,8 +189,8 @@ def train(args):
             total_loss.backward()
             optimizer.step()
 
-            agg_content_loss += content_loss.data[0]
-            agg_style_loss += style_loss.data[0]
+            agg_content_loss += content_loss.data.item()
+            agg_style_loss += style_loss.data.item()
 
             if (batch_id + 1) % args.log_interval == 0:
                 mesg = "{}\tEpoch {}:\t[{}/{}]\tcontent: {:.6f}\tstyle: {:.6f}\ttotal: {:.6f}".format(

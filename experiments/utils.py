@@ -12,6 +12,8 @@ import os
 
 import numpy as np
 import torch
+from torchvision import models
+import zipfile
 from PIL import Image
 from torch.autograd import Variable
 from torchfile import load as load_lua
@@ -65,7 +67,7 @@ def subtract_imagenet_mean_batch(batch):
     mean[:, 0, :, :] = 103.939
     mean[:, 1, :, :] = 116.779
     mean[:, 2, :, :] = 123.680
-    return batch - Variable(mean)
+    return batch - Variable(mean.cuda())
 
 
 def add_imagenet_mean_batch(batch):
@@ -96,11 +98,16 @@ def init_vgg16(model_folder):
     if not os.path.exists(os.path.join(model_folder, 'vgg16.weight')):
         if not os.path.exists(os.path.join(model_folder, 'vgg16.t7')):
             os.system(
-                'wget http://cs.stanford.edu/people/jcjohns/fast-neural-style/models/vgg16.t7 -O ' + os.path.join(model_folder, 'vgg16.t7'))
-        vgglua = load_lua(os.path.join(model_folder, 'vgg16.t7'))
+                'wget http://cs.stanford.edu/people/jcjohns/densecap/densecap-pretrained-vgg16.t7.zip -O ' + os.path.join(model_folder, 'vgg16.zip'))
+            with zipfile.ZipFile(os.path.join(model_folder, 'vgg16.zip'),"r") as zip_ref:
+                 zip_ref.extractall(os.path.join(model_folder, 'vgg16.t7'))
+        vgglua = load_lua(os.path.join(model_folder, 'vgg16.t7/densecap-pretrained-vgg16.t7'))
+        vgglua = models.vgg16(pretrained=True).state_dict()
         vgg = Vgg16()
-        for (src, dst) in zip(vgglua.parameters()[0], vgg.parameters()):
-            dst.data[:] = src
+        for (src, dst) in zip(vgglua.keys(), vgg.parameters()):
+            if src in ['classifier.0.weight', 'classifier.0.bias', 'classifier.3.weight', 'classifier.3.bias', 'classifier.6.weight', 'classifier.6.bias']:
+              continue
+            dst.data[:] = vgglua[src]
         torch.save(vgg.state_dict(), os.path.join(model_folder, 'vgg16.weight'))
 
 
