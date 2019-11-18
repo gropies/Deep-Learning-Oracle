@@ -26,6 +26,7 @@ import utils
 from net import Net, Vgg16
 
 from option import Options
+import lap_loss
 
 def main():
     # figure out the experiments type
@@ -174,6 +175,9 @@ def train(args):
             f_xc_c = Variable(features_xc[1].data, requires_grad=False)
 
             content_loss = args.content_weight * mse_loss(features_y[1], f_xc_c)
+            laploss = lap_loss.LapLoss()
+            laplacian_loss = laploss(xc,features_style)
+            laplacian_weight = 2
 
             style_loss = 0.
             for m in range(len(features_y)):
@@ -181,7 +185,7 @@ def train(args):
                 gram_s = Variable(gram_style[m].data, requires_grad=False).repeat(args.batch_size, 1, 1, 1)
                 style_loss += args.style_weight * mse_loss(gram_y, gram_s[:n_batch, :, :])
 
-            total_loss = content_loss + style_loss
+            total_loss = content_loss + style_loss + laplacian_weight * laplacian_loss 
             total_loss.backward()
             optimizer.step()
 
