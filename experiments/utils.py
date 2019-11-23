@@ -93,6 +93,8 @@ def preprocess_batch(batch):
     return batch
 
 
+
+
 def init_vgg16(model_folder):
     """load the vgg16 model feature"""
     if not os.path.exists(os.path.join(model_folder, 'vgg16.weight')):

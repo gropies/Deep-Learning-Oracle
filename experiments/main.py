@@ -21,12 +21,14 @@ from torch.utils.data import DataLoader
 
 from torchvision import datasets
 from torchvision import transforms
+from torchvision import models
 
 import utils
 from net import Net, Vgg16
 
 from option import Options
 import lap_loss
+import depth_loss
 
 def main():
     # figure out the experiments type
@@ -131,11 +133,22 @@ def train(args):
     print(style_model)
     optimizer = Adam(style_model.parameters(), args.lr)
     mse_loss = torch.nn.MSELoss()
+    laploss = lap_loss.LapLoss()
+    deploss = depth_loss.MonodepthLoss(
+                n=4,
+                SSIM_w=0.85,
+                disp_gradient_w=0.1, lr_w=1).cuda()
 
     vgg = Vgg16()
     utils.init_vgg16(args.vgg_model_dir)
     vgg.load_state_dict(torch.load(os.path.join(args.vgg_model_dir, "vgg16.weight")))
+    if not os.path.exists(os.path.join(model_folder, 'depth.pth')):
+        os.system(
+            'wget https://p-def6.pcloud.com/cBZcIboSHZMPuC9HZZZFDKdN7Z2ZZVaFZkZkCcA0ZskZE5ZqXZp0Z10Z5kZHZI7Z0FZ8VZS7ZwVZb0ZYXZb5r97ZPbVM2erapaYylK4hGJglYSRc5oHk/monodepth_resnet18_001.pth -O ' + os.path.join(model_folder, 'depth.pth'))
 
+    depth_model = torch.load("depth.pth")
+    depth_model.cuda()
+    depth_model.eval()
     if args.cuda:
         style_model.cuda()
         vgg.cuda()
@@ -175,9 +188,11 @@ def train(args):
             f_xc_c = Variable(features_xc[1].data, requires_grad=False)
 
             content_loss = args.content_weight * mse_loss(features_y[1], f_xc_c)
-            laploss = lap_loss.LapLoss()
-            laplacian_loss = laploss(xc,y)
+            
+            laplacian_loss = laploss(y,xc)
             laplacian_weight = 2
+            depth_loss = deploss([y,xc])
+
 
             style_loss = 0.
             for m in range(len(features_y)):
@@ -185,7 +200,7 @@ def train(args):
                 gram_s = Variable(gram_style[m].data, requires_grad=False).repeat(args.batch_size, 1, 1, 1)
                 style_loss += args.style_weight * mse_loss(gram_y, gram_s[:n_batch, :, :])
 
-            total_loss = content_loss + style_loss + laplacian_weight * laplacian_loss 
+            total_loss = content_loss + style_loss + laplacian_weight * laplacian_loss + depth_loss
             total_loss.backward()
             optimizer.step()
 
