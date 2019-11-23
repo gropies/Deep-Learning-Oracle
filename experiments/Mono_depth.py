@@ -1,3 +1,6 @@
+"""
+Quoted From: https://github.com/OniroAI/MonoDepth-PyTorch/blob/master/models_resnet.py
+"""
 from torchvision import models
 import torch
 import resnet18_md as md
