@@ -13,6 +13,7 @@ import sys
 import time
 import numpy as np
 from tqdm import tqdm, trange
+import Mono_depth
 
 import torch
 from torch.optim import Adam
@@ -27,8 +28,9 @@ import utils
 from net import Net, Vgg16
 
 from option import Options
+from easydict import EasyDict as edict
 import lap_loss
-import depth_loss
+import depth_loss as dl
 
 def main():
     # figure out the experiments type
@@ -134,7 +136,7 @@ def train(args):
     optimizer = Adam(style_model.parameters(), args.lr)
     mse_loss = torch.nn.MSELoss()
     laploss = lap_loss.LapLoss()
-    deploss = depth_loss.MonodepthLoss(
+    deploss = dl.MonodepthLoss(
                 n=4,
                 SSIM_w=0.85,
                 disp_gradient_w=0.1, lr_w=1).cuda()
@@ -142,11 +144,31 @@ def train(args):
     vgg = Vgg16()
     utils.init_vgg16(args.vgg_model_dir)
     vgg.load_state_dict(torch.load(os.path.join(args.vgg_model_dir, "vgg16.weight")))
-    if not os.path.exists(os.path.join(model_folder, 'depth.pth')):
+    if not os.path.exists(os.path.join(args.vgg_model_dir, 'depth.pth')):
         os.system(
-            'wget https://p-def6.pcloud.com/cBZcIboSHZMPuC9HZZZFDKdN7Z2ZZVaFZkZkCcA0ZskZE5ZqXZp0Z10Z5kZHZI7Z0FZ8VZS7ZwVZb0ZYXZb5r97ZPbVM2erapaYylK4hGJglYSRc5oHk/monodepth_resnet18_001.pth -O ' + os.path.join(model_folder, 'depth.pth'))
-
-    depth_model = torch.load("depth.pth")
+            'wget https://p-def6.pcloud.com/cBZcIboSHZMPuC9HZZZFDKdN7Z2ZZVaFZkZkCcA0ZskZE5ZqXZp0Z10Z5kZHZI7Z0FZ8VZS7ZwVZb0ZYXZb5r97ZPbVM2erapaYylK4hGJglYSRc5oHk/monodepth_resnet18_001.pth -O ' + os.path.join(args.vgg_model_dir, 'depth.pth'))
+    depth_model = Mono_depth.Model(edict({'data_dir':'data/kitti/train/',
+                         'val_data_dir':'data/kitti/val/',
+                         'model_path':'data/models/monodepth_resnet18_001.pth',
+                         'output_directory':'data/output/',
+                         'input_height':256,
+                         'input_width':512,
+                         'model':'resnet18_md',
+                         'pretrained':True,
+                         'mode':'train',
+                         'epochs':200,
+                         'learning_rate':1e-4,
+                         'batch_size': 8,
+                         'adjust_lr':True,
+                         'device':'cuda:0',
+                         'do_augmentation':True,
+                         'augment_parameters':[0.8, 1.2, 0.5, 2.0, 0.8, 1.2],
+                         'print_images':False,
+                         'print_weights':False,
+                         'input_channels': 3,
+                         'num_workers': 8,
+                         'use_multiple_gpu': False}))
+    depth_model.load('models/monodepth_resnet18_001.pth')
     depth_model.cuda()
     depth_model.eval()
     if args.cuda:
