@@ -81,7 +81,7 @@ class MonodepthLoss(nn.modules.Module):
         return torch.clamp((1 - SSIM) / 2, 0, 1)
 
 
-    def forward(self, target):
+    def forward(self, input,target):
         """
         Args:
             target [left, right]
@@ -91,6 +91,12 @@ class MonodepthLoss(nn.modules.Module):
         left, right = target
         left_pyramid = self.scale_pyramid(left, self.n)
         right_pyramid = self.scale_pyramid(right, self.n)
+
+        disp_left_est = [d[:, 0, :, :].unsqueeze(1) for d in input]
+        disp_right_est = [d[:, 1, :, :].unsqueeze(1) for d in input]
+
+        self.disp_left_est = disp_left_est
+        self.disp_right_est = disp_right_est
 
         # Generate images
         left_est = [self.generate_image_left(right_pyramid[i],

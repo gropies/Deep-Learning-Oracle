@@ -149,13 +149,13 @@ def train(args):
             'wget https://p-def6.pcloud.com/cBZcIboSHZMPuC9HZZZFDKdN7Z2ZZVaFZkZkCcA0ZskZE5ZqXZp0Z10Z5kZHZI7Z0FZ8VZS7ZwVZb0ZYXZb5r97ZPbVM2erapaYylK4hGJglYSRc5oHk/monodepth_resnet18_001.pth -O ' + os.path.join(args.vgg_model_dir, 'depth.pth'))
     depth_model = Mono_depth.Model(edict({'data_dir':'data/kitti/train/',
                          'val_data_dir':'data/kitti/val/',
-                         'model_path':'data/models/monodepth_resnet18_001.pth',
+                         'model_path':'_monodepth_resnet18_001.pth',
                          'output_directory':'data/output/',
                          'input_height':256,
                          'input_width':512,
                          'model':'resnet18_md',
                          'pretrained':True,
-                         'mode':'train',
+                         'mode':'eval',
                          'epochs':200,
                          'learning_rate':1e-4,
                          'batch_size': 8,
@@ -168,9 +168,7 @@ def train(args):
                          'input_channels': 3,
                          'num_workers': 8,
                          'use_multiple_gpu': False}))
-    depth_model.load('models/monodepth_resnet18_001.pth')
-    depth_model.cuda()
-    depth_model.eval()
+    depth_model.load('monodepth_resnet18_001.pth')
     if args.cuda:
         style_model.cuda()
         vgg.cuda()
@@ -210,10 +208,11 @@ def train(args):
             f_xc_c = Variable(features_xc[1].data, requires_grad=False)
 
             content_loss = args.content_weight * mse_loss(features_y[1], f_xc_c)
-            
+          
             laplacian_loss = laploss(y,xc)
             laplacian_weight = 2
-            depth_loss = deploss([y,xc])
+            depth_left = depth_model.model(y)
+            depth_loss = deploss(depth_left,[y,xc])
 
 
             style_loss = 0.

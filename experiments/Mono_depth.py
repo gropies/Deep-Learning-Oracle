@@ -1,162 +1,24 @@
+from torchvision import models
+import torch
+import resnet18_md as md
 class Model:
 
     def __init__(self, args):
         self.args = args
 
         # Set up model
-        self.device = args.device
-        self.model = get_model(args.model, input_channels=args.input_channels, pretrained=args.pretrained)
-        self.model = self.model.to(self.device)
+        self.model = md.Resnet18_md(3)
+        self.model = self.model.cuda()
+        self.model.eval()
         if args.use_multiple_gpu:
             self.model = torch.nn.DataParallel(self.model)
-
-        if args.mode == 'train':
-            self.loss_function = MonodepthLoss(
-                n=4,
-                SSIM_w=0.85,
-                disp_gradient_w=0.1, lr_w=1).to(self.device)
-            self.optimizer = optim.Adam(self.model.parameters(),
-                                        lr=args.learning_rate)
-            self.val_n_img, self.val_loader = prepare_dataloader(args.val_data_dir, args.mode,
-                                                                 args.augment_parameters,
-                                                                 False, args.batch_size,
-                                                                 (args.input_height, args.input_width),
-                                                                 args.num_workers)
-        else:
-            self.model.load_state_dict(torch.load(args.model_path))
-            args.augment_parameters = None
-            args.do_augmentation = False
-            args.batch_size = 1
-
-        # Load data
-        self.output_directory = args.output_directory
-        self.input_height = args.input_height
-        self.input_width = args.input_width
-
-        self.n_img, self.loader = prepare_dataloader(args.data_dir, args.mode, args.augment_parameters,
-                                                     args.do_augmentation, args.batch_size,
-                                                     (args.input_height, args.input_width),
-                                                     args.num_workers)
-
-
-        if 'cuda' in self.device:
-            torch.cuda.synchronize()
-
-
-    def train(self):
-        losses = []
-        val_losses = []
-        best_loss = float('Inf')
-        best_val_loss = float('Inf')
-
-        running_val_loss = 0.0
-        self.model.eval()
-        for data in self.val_loader:
-            data = to_device(data, self.device)
-            left = data['left_image']
-            right = data['right_image']
-            disps = self.model(left)
-            loss = self.loss_function(disps, [left, right])
-            val_losses.append(loss.item())
-            running_val_loss += loss.item()
-
-        running_val_loss /= self.val_n_img / self.args.batch_size
-        print('Val_loss:', running_val_loss)
-
-        for epoch in range(self.args.epochs):
-            if self.args.adjust_lr:
-                adjust_learning_rate(self.optimizer, epoch,
-                                     self.args.learning_rate)
-            c_time = time.time()
-            running_loss = 0.0
-            self.model.train()
-            for data in self.loader:
-                # Load data
-                data = to_device(data, self.device)
-                left = data['left_image']
-                right = data['right_image']
-
-                # One optimization iteration
-                self.optimizer.zero_grad()
-                disps = self.model(left)
-                loss = self.loss_function(disps, [left, right])
-                loss.backward()
-                self.optimizer.step()
-                losses.append(loss.item())
-
-                # Print statistics
-                if self.args.print_weights:
-                    j = 1
-                    for (name, parameter) in self.model.named_parameters():
-                        if name.split(sep='.')[-1] == 'weight':
-                            plt.subplot(5, 9, j)
-                            plt.hist(parameter.data.view(-1))
-                            plt.xlim([-1, 1])
-                            plt.title(name.split(sep='.')[0])
-                            j += 1
-                    plt.show()
-
-                if self.args.print_images:
-                    print('disp_left_est[0]')
-                    plt.imshow(np.squeeze(
-                        np.transpose(self.loss_function.disp_left_est[0][0,
-                                     :, :, :].cpu().detach().numpy(),
-                                     (1, 2, 0))))
-                    plt.show()
-                    print('left_est[0]')
-                    plt.imshow(np.transpose(self.loss_function\
-                        .left_est[0][0, :, :, :].cpu().detach().numpy(),
-                        (1, 2, 0)))
-                    plt.show()
-                    print('disp_right_est[0]')
-                    plt.imshow(np.squeeze(
-                        np.transpose(self.loss_function.disp_right_est[0][0,
-                                     :, :, :].cpu().detach().numpy(),
-                                     (1, 2, 0))))
-                    plt.show()
-                    print('right_est[0]')
-                    plt.imshow(np.transpose(self.loss_function.right_est[0][0,
-                               :, :, :].cpu().detach().numpy(), (1, 2,
-                               0)))
-                    plt.show()
-                running_loss += loss.item()
-
-            running_val_loss = 0.0
-            self.model.eval()
-            for data in self.val_loader:
-                data = to_device(data, self.device)
-                left = data['left_image']
-                right = data['right_image']
-                disps = self.model(left)
-                loss = self.loss_function(disps, [left, right])
-                val_losses.append(loss.item())
-                running_val_loss += loss.item()
-
-            # Estimate loss per image
-            running_loss /= self.n_img / self.args.batch_size
-            running_val_loss /= self.val_n_img / self.args.batch_size
-            print (
-                'Epoch:',
-                epoch + 1,
-                'train_loss:',
-                running_loss,
-                'val_loss:',
-                running_val_loss,
-                'time:',
-                round(time.time() - c_time, 3),
-                's',
-                )
-            self.save(self.args.model_path[:-4] + '_last.pth')
-            if running_val_loss < best_val_loss:
-                self.save(self.args.model_path[:-4] + '_cpt.pth')
-                best_val_loss = running_val_loss
-                print('Model_saved')
-
-        print ('Finished Training. Best loss:', best_loss)
-        self.save(self.args.model_path)
 
     def save(self, path):
         torch.save(self.model.state_dict(), path)
 
     def load(self, path):
-        self.model.load_state_dict(torch.load(path))
+        state = torch.load(path)
+        for (src, dst) in zip(state.keys(), self.model.parameters()):
+            if src in ["conv2.0.conv1.conv_base.weight", "conv2.0.conv1.conv_base.bias", "conv2.0.conv1.normalize.weight", "conv2.0.conv1.normalize.bias", "conv2.0.conv1.normalize.running_mean", "conv2.0.conv1.normalize.running_var", "conv2.0.conv1.normalize.num_batches_tracked", "conv2.0.conv2.conv_base.weight", "conv2.0.conv2.conv_base.bias", "conv2.0.conv2.normalize.weight", "conv2.0.conv2.normalize.bias", "conv2.0.conv2.normalize.running_mean", "conv2.0.conv2.normalize.running_var", "conv2.0.conv2.normalize.num_batches_tracked", "conv2.0.conv3.weight", "conv2.0.conv3.bias", "conv2.0.normalize.weight", "conv2.0.normalize.bias", "conv2.0.normalize.running_mean", "conv2.0.normalize.running_var", "conv2.0.normalize.num_batches_tracked", "conv2.1.conv1.conv_base.weight", "conv2.1.conv1.conv_base.bias", "conv2.1.conv1.normalize.weight", "conv2.1.conv1.normalize.bias", "conv2.1.conv1.normalize.running_mean", "conv2.1.conv1.normalize.running_var", "conv2.1.conv1.normalize.num_batches_tracked", "conv2.1.conv2.conv_base.weight", "conv2.1.conv2.conv_base.bias", "conv2.1.conv2.normalize.weight", "conv2.1.conv2.normalize.bias", "conv2.1.conv2.normalize.running_mean", "conv2.1.conv2.normalize.running_var", "conv2.1.conv2.normalize.num_batches_tracked", "conv2.1.conv3.weight", "conv2.1.conv3.bias", "conv2.1.normalize.weight", "conv2.1.normalize.bias", "conv2.1.normalize.running_mean", "conv2.1.normalize.running_var", "conv2.1.normalize.num_batches_tracked", "conv3.0.conv1.conv_base.weight", "conv3.0.conv1.conv_base.bias", "conv3.0.conv1.normalize.weight", "conv3.0.conv1.normalize.bias", "conv3.0.conv1.normalize.running_mean", "conv3.0.conv1.normalize.running_var", "conv3.0.conv1.normalize.num_batches_tracked", "conv3.0.conv2.conv_base.weight", "conv3.0.conv2.conv_base.bias", "conv3.0.conv2.normalize.weight", "conv3.0.conv2.normalize.bias", "conv3.0.conv2.normalize.running_mean", "conv3.0.conv2.normalize.running_var", "conv3.0.conv2.normalize.num_batches_tracked", "conv3.0.conv3.weight", "conv3.0.conv3.bias", "conv3.0.normalize.weight", "conv3.0.normalize.bias", "conv3.0.normalize.running_mean", "conv3.0.normalize.running_var", "conv3.0.normalize.num_batches_tracked", "conv3.1.conv1.conv_base.weight", "conv3.1.conv1.conv_base.bias", "conv3.1.conv1.normalize.weight", "conv3.1.conv1.normalize.bias", "conv3.1.conv1.normalize.running_mean", "conv3.1.conv1.normalize.running_var", "conv3.1.conv1.normalize.num_batches_tracked", "conv3.1.conv2.conv_base.weight", "conv3.1.conv2.conv_base.bias", "conv3.1.conv2.normalize.weight", "conv3.1.conv2.normalize.bias", "conv3.1.conv2.normalize.running_mean", "conv3.1.conv2.normalize.running_var", "conv3.1.conv2.normalize.num_batches_tracked", "conv3.1.conv3.weight", "conv3.1.conv3.bias", "conv3.1.normalize.weight", "conv3.1.normalize.bias", "conv3.1.normalize.running_mean", "conv3.1.normalize.running_var", "conv3.1.normalize.num_batches_tracked", "conv4.0.conv1.conv_base.weight", "conv4.0.conv1.conv_base.bias", "conv4.0.conv1.normalize.weight", "conv4.0.conv1.normalize.bias", "conv4.0.conv1.normalize.running_mean", "conv4.0.conv1.normalize.running_var", "conv4.0.conv1.normalize.num_batches_tracked", "conv4.0.conv2.conv_base.weight", "conv4.0.conv2.conv_base.bias", "conv4.0.conv2.normalize.weight", "conv4.0.conv2.normalize.bias", "conv4.0.conv2.normalize.running_mean", "conv4.0.conv2.normalize.running_var", "conv4.0.conv2.normalize.num_batches_tracked", "conv4.0.conv3.weight", "conv4.0.conv3.bias", "conv4.0.normalize.weight", "conv4.0.normalize.bias", "conv4.0.normalize.running_mean", "conv4.0.normalize.running_var", "conv4.0.normalize.num_batches_tracked", "conv4.1.conv1.conv_base.weight", "conv4.1.conv1.conv_base.bias", "conv4.1.conv1.normalize.weight", "conv4.1.conv1.normalize.bias", "conv4.1.conv1.normalize.running_mean", "conv4.1.conv1.normalize.running_var", "conv4.1.conv1.normalize.num_batches_tracked", "conv4.1.conv2.conv_base.weight", "conv4.1.conv2.conv_base.bias", "conv4.1.conv2.normalize.weight", "conv4.1.conv2.normalize.bias", "conv4.1.conv2.normalize.running_mean", "conv4.1.conv2.normalize.running_var", "conv4.1.conv2.normalize.num_batches_tracked", "conv4.1.conv3.weight", "conv4.1.conv3.bias", "conv4.1.normalize.weight", "conv4.1.normalize.bias", "conv4.1.normalize.running_mean", "conv4.1.normalize.running_var", "conv4.1.normalize.num_batches_tracked", "conv5.0.conv1.conv_base.weight", "conv5.0.conv1.conv_base.bias", "conv5.0.conv1.normalize.weight", "conv5.0.conv1.normalize.bias", "conv5.0.conv1.normalize.running_mean", "conv5.0.conv1.normalize.running_var", "conv5.0.conv1.normalize.num_batches_tracked", "conv5.0.conv2.conv_base.weight", "conv5.0.conv2.conv_base.bias", "conv5.0.conv2.normalize.weight", "conv5.0.conv2.normalize.bias", "conv5.0.conv2.normalize.running_mean", "conv5.0.conv2.normalize.running_var", "conv5.0.conv2.normalize.num_batches_tracked", "conv5.0.conv3.weight", "conv5.0.conv3.bias", "conv5.0.normalize.weight", "conv5.0.normalize.bias", "conv5.0.normalize.running_mean", "conv5.0.normalize.running_var", "conv5.0.normalize.num_batches_tracked", "conv5.1.conv1.conv_base.weight", "conv5.1.conv1.conv_base.bias", "conv5.1.conv1.normalize.weight", "conv5.1.conv1.normalize.bias", "conv5.1.conv1.normalize.running_mean", "conv5.1.conv1.normalize.running_var", "conv5.1.conv1.normalize.num_batches_tracked", "conv5.1.conv2.conv_base.weight", "conv5.1.conv2.conv_base.bias", "conv5.1.conv2.normalize.weight", "conv5.1.conv2.normalize.bias", "conv5.1.conv2.normalize.running_mean", "conv5.1.conv2.normalize.running_var", "conv5.1.conv2.normalize.num_batches_tracked", "conv5.1.conv3.weight", "conv5.1.conv3.bias", "conv5.1.normalize.weight", "conv5.1.normalize.bias", "conv5.1.normalize.running_mean", "conv5.1.normalize.running_var", "conv5.1.normalize.num_batches_tracked", "upconv6.conv1.conv_base.weight", "upconv6.conv1.conv_base.bias", "upconv6.conv1.normalize.weight", "upconv6.conv1.normalize.bias", "upconv6.conv1.normalize.running_mean", "upconv6.conv1.normalize.running_var", "upconv6.conv1.normalize.num_batches_tracked", "iconv6.conv_base.weight", "iconv6.conv_base.bias", "iconv6.normalize.weight", "iconv6.normalize.bias", "iconv6.normalize.running_mean", "iconv6.normalize.running_var", "iconv6.normalize.num_batches_tracked", "upconv5.conv1.conv_base.weight", "upconv5.conv1.conv_base.bias", "upconv5.conv1.normalize.weight", "upconv5.conv1.normalize.bias", "upconv5.conv1.normalize.running_mean", "upconv5.conv1.normalize.running_var", "upconv5.conv1.normalize.num_batches_tracked", "iconv5.conv_base.weight", "iconv5.conv_base.bias", "iconv5.normalize.weight", "iconv5.normalize.bias", "iconv5.normalize.running_mean", "iconv5.normalize.running_var", "iconv5.normalize.num_batches_tracked", "upconv4.conv1.conv_base.weight", "upconv4.conv1.conv_base.bias", "upconv4.conv1.normalize.weight", "upconv4.conv1.normalize.bias", "upconv4.conv1.normalize.running_mean", "upconv4.conv1.normalize.running_var", "upconv4.conv1.normalize.num_batches_tracked", "iconv4.conv_base.weight", "iconv4.conv_base.bias", "iconv4.normalize.weight", "iconv4.normalize.bias", "iconv4.normalize.running_mean", "iconv4.normalize.running_var", "iconv4.normalize.num_batches_tracked", "disp4_layer.conv1.weight", "disp4_layer.conv1.bias", "disp4_layer.normalize.weight", "disp4_layer.normalize.bias", "disp4_layer.normalize.running_mean", "disp4_layer.normalize.running_var", "disp4_layer.normalize.num_batches_tracked", "upconv3.conv1.conv_base.weight", "upconv3.conv1.conv_base.bias", "upconv3.conv1.normalize.weight", "upconv3.conv1.normalize.bias", "upconv3.conv1.normalize.running_mean", "upconv3.conv1.normalize.running_var", "upconv3.conv1.normalize.num_batches_tracked", "iconv3.conv_base.weight", "iconv3.conv_base.bias", "iconv3.normalize.weight", "iconv3.normalize.bias", "iconv3.normalize.running_mean", "iconv3.normalize.running_var", "iconv3.normalize.num_batches_tracked", "disp3_layer.conv1.weight", "disp3_layer.conv1.bias", "disp3_layer.normalize.weight", "disp3_layer.normalize.bias", "disp3_layer.normalize.running_mean", "disp3_layer.normalize.running_var", "disp3_layer.normalize.num_batches_tracked", "upconv2.conv1.conv_base.weight", "upconv2.conv1.conv_base.bias", "upconv2.conv1.normalize.weight", "upconv2.conv1.normalize.bias", "upconv2.conv1.normalize.running_mean", "upconv2.conv1.normalize.running_var", "upconv2.conv1.normalize.num_batches_tracked", "iconv2.conv_base.weight", "iconv2.conv_base.bias", "iconv2.normalize.weight", "iconv2.normalize.bias", "iconv2.normalize.running_mean", "iconv2.normalize.running_var", "iconv2.normalize.num_batches_tracked", "disp2_layer.conv1.weight", "disp2_layer.conv1.bias", "disp2_layer.normalize.weight", "disp2_layer.normalize.bias", "disp2_layer.normalize.running_mean", "disp2_layer.normalize.running_var", "disp2_layer.normalize.num_batches_tracked", "upconv1.conv1.conv_base.weight", "upconv1.conv1.conv_base.bias", "upconv1.conv1.normalize.weight", "upconv1.conv1.normalize.bias", "upconv1.conv1.normalize.running_mean", "upconv1.conv1.normalize.running_var", "upconv1.conv1.normalize.num_batches_tracked", "iconv1.conv_base.weight", "iconv1.conv_base.bias", "iconv1.normalize.weight", "iconv1.normalize.bias", "iconv1.normalize.running_mean", "iconv1.normalize.running_var", "iconv1.normalize.num_batches_tracked", "disp1_layer.conv1.weight", "disp1_layer.conv1.bias", "disp1_layer.normalize.weight", "disp1_layer.normalize.bias", "disp1_layer.normalize.running_mean", "disp1_layer.normalize.running_var", "disp1_layer.normalize.num_batches_tracked", "conv1.conv_base.weight", "conv1.conv_base.bias", "conv1.normalize.weight", "conv1.normalize.bias", "conv1.normalize.running_mean", "conv1.normalize.running_var", "conv1.normalize.num_batches_tracked"]:
+              continue
+            dst.data[:] = state[src]
