@@ -149,7 +149,7 @@ def train(args):
             'wget https://p-def6.pcloud.com/cBZcIboSHZMPuC9HZZZFDKdN7Z2ZZVaFZkZkCcA0ZskZE5ZqXZp0Z10Z5kZHZI7Z0FZ8VZS7ZwVZb0ZYXZb5r97ZPbVM2erapaYylK4hGJglYSRc5oHk/monodepth_resnet18_001.pth -O ' + os.path.join(args.vgg_model_dir, 'depth.pth'))
     depth_model = Mono_depth.Model(edict({'data_dir':'data/kitti/train/',
                          'val_data_dir':'data/kitti/val/',
-                         'model_path':'_monodepth_resnet18_001.pth',
+                         'model_path':'monodepth_resnet18_001.pth',
                          'output_directory':'data/output/',
                          'input_height':256,
                          'input_width':512,
@@ -168,7 +168,7 @@ def train(args):
                          'input_channels': 3,
                          'num_workers': 8,
                          'use_multiple_gpu': False}))
-    depth_model.load('monodepth_resnet18_001.pth')
+    depth_model.load('model/depth.pth')
     if args.cuda:
         style_model.cuda()
         vgg.cuda()
