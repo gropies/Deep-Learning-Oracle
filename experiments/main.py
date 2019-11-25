@@ -15,11 +15,13 @@ import time
 import numpy as np
 from tqdm import tqdm, trange
 import Mono_depth
+import edge_model
 
 import torch
 from torch.optim import Adam
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
+from functions import cross_entropy_loss
 
 from torchvision import datasets
 from torchvision import transforms
@@ -136,6 +138,7 @@ def train(args):
     print(style_model)
     optimizer = Adam(style_model.parameters(), args.lr)
     mse_loss = torch.nn.MSELoss()
+    edgeloss = cross_entropy_loss()
     laploss = lap_loss.LapLoss()
     deploss = dl.MonodepthLoss(
                 n=4,
@@ -145,12 +148,14 @@ def train(args):
     vgg = Vgg16()
     utils.init_vgg16(args.vgg_model_dir)
     vgg.load_state_dict(torch.load(os.path.join(args.vgg_model_dir, "vgg16.weight")))
-    edge_detect = Vgg16()
+    
+    edge_detect = edge_model.HED()
     if not os.path.exists(os.path.join(args.vgg_model_dir, 'edge.pytorch')):
         os.system(
             'wget --timestamping http://content.sniklaus.com/github/pytorch-hed/network-bsds500.pytorch -O ' + os.path.join(args.vgg_model_dir, 'edge.pytorch'))
     state = torch.load(os.path.join(args.vgg_model_dir, 'edge.pytorch'))
-    edge_detect.load_state_dict(state)
+    for (src, dst) in zip(state.keys(), edge_detect.parameters()):
+        dst.data[:] = state[src]
 
     if not os.path.exists(os.path.join(args.vgg_model_dir, 'depth.pth')):
         os.system(
@@ -218,8 +223,9 @@ def train(args):
             content_loss = args.content_weight * mse_loss(features_y[1], f_xc_c)
             
             edge_detect.eval()
-            lap = edge_detect(y)
-            laplacian_loss = laploss(lap,xc)
+            edge_out = edge_detect(y)
+            edge_loss = edgeloss(edge_out,xc)
+            laplacian_loss = laploss(y,xc)
             laplacian_weight = 2.5
             depth_left = depth_model.model(y)
             depth_loss = deploss(depth_left,[y,xc])
