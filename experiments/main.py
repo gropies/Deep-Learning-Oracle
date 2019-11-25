@@ -145,6 +145,13 @@ def train(args):
     vgg = Vgg16()
     utils.init_vgg16(args.vgg_model_dir)
     vgg.load_state_dict(torch.load(os.path.join(args.vgg_model_dir, "vgg16.weight")))
+    edge_detect = Vgg16()
+    if not os.path.exists(os.path.join(args.vgg_model_dir, 'edge.pytorch')):
+        os.system(
+            'wget --timestamping http://content.sniklaus.com/github/pytorch-hed/network-bsds500.pytorch -O ' + os.path.join(args.vgg_model_dir, 'edge.pytorch'))
+    state = torch.load(os.path.join(args.vgg_model_dir, 'edge.pytorch'))
+    edge_detect.load_state_dict(state)
+
     if not os.path.exists(os.path.join(args.vgg_model_dir, 'depth.pth')):
         os.system(
             'wget https://p-def6.pcloud.com/cBZcIboSHZMPuC9HZZZFDKdN7Z2ZZVaFZkZkCcA0ZskZE5ZqXZp0Z10Z5kZHZI7Z0FZ8VZS7ZwVZb0ZYXZb5r97ZPbVM2erapaYylK4hGJglYSRc5oHk/monodepth_resnet18_001.pth -O ' + os.path.join(args.vgg_model_dir, 'depth.pth'))
@@ -209,9 +216,11 @@ def train(args):
             f_xc_c = Variable(features_xc[1].data, requires_grad=False)
 
             content_loss = args.content_weight * mse_loss(features_y[1], f_xc_c)
-          
-            laplacian_loss = laploss(y,xc)
-            laplacian_weight = 2
+            
+            edge_detect.eval()
+            lap = edge_detect(y)
+            laplacian_loss = laploss(lap,xc)
+            laplacian_weight = 2.5
             depth_left = depth_model.model(y)
             depth_loss = deploss(depth_left,[y,xc])
 
