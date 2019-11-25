@@ -157,9 +157,9 @@ def train(args):
     for (src, dst) in zip(state.keys(), edge_detect.parameters()):
         dst.data[:] = state[src]
 
-    if not os.path.exists(os.path.join(args.vgg_model_dir, 'depth.pth')):
-        os.system(
-            'wget https://p-def6.pcloud.com/cBZcIboSHZMPuC9HZZZFDKdN7Z2ZZVaFZkZkCcA0ZskZE5ZqXZp0Z10Z5kZHZI7Z0FZ8VZS7ZwVZb0ZYXZb5r97ZPbVM2erapaYylK4hGJglYSRc5oHk/monodepth_resnet18_001.pth -O ' + os.path.join(args.vgg_model_dir, 'depth.pth'))
+    # if not os.path.exists(os.path.join(args.vgg_model_dir, 'depth.pth')):
+    #     os.system(
+    #         'wget https://p-def6.pcloud.com/cBZcIboSHZMPuC9HZZZFDKdN7Z2ZZVaFZkZkCcA0ZskZE5ZqXZp0Z10Z5kZHZI7Z0FZ8VZS7ZwVZb0ZYXZb5r97ZPbVM2erapaYylK4hGJglYSRc5oHk/monodepth_resnet18_001.pth -O ' + os.path.join(args.vgg_model_dir, 'depth.pth'))
     depth_model = Mono_depth.Model(edict({'data_dir':'data/kitti/train/',
                          'val_data_dir':'data/kitti/val/',
                          'model_path':'monodepth_resnet18_001.pth',
