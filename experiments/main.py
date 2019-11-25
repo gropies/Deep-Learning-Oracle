@@ -139,6 +139,8 @@ def train(args):
     optimizer = Adam(style_model.parameters(), args.lr)
     mse_loss = torch.nn.MSELoss()
     laploss = lap_loss.LapLoss()
+    laplacian_weight = 1
+    edge_weight = 2.5
     deploss = dl.MonodepthLoss(
                 n=4,
                 SSIM_w=0.85,
@@ -150,6 +152,7 @@ def train(args):
     
     edge_detect = edge_model.HED()
     edge_detect.cuda()
+
     if not os.path.exists(os.path.join(args.vgg_model_dir, 'edge.pytorch')):
         os.system(
             'wget --timestamping http://content.sniklaus.com/github/pytorch-hed/network-bsds500.pytorch -O ' + os.path.join(args.vgg_model_dir, 'edge.pytorch'))
@@ -182,6 +185,7 @@ def train(args):
                          'num_workers': 8,
                          'use_multiple_gpu': False}))
     depth_model.load('monodepth_resnet18_001.pth')
+    depth_model.eval()
     if args.cuda:
         style_model.cuda()
         vgg.cuda()
@@ -227,7 +231,7 @@ def train(args):
             content_out = torch.cat(edge_detect(xc),dim=1)
             edge_loss = cross_entropy_loss(edge_out,content_out)
             laplacian_loss = laploss(y,xc)
-            laplacian_weight = 2.5
+
             depth_left = depth_model.model(y)
             depth_loss = deploss(depth_left,[y,xc])
 
@@ -238,7 +242,7 @@ def train(args):
                 gram_s = Variable(gram_style[m].data, requires_grad=False).repeat(args.batch_size, 1, 1, 1)
                 style_loss += args.style_weight * mse_loss(gram_y, gram_s[:n_batch, :, :])
 
-            total_loss = content_loss + style_loss + laplacian_weight * laplacian_loss + depth_loss
+            total_loss = content_loss + style_loss + laplacian_weight * laplacian_loss + depth_loss + edge_weight * edge_loss
             total_loss.backward()
             optimizer.step()
 
