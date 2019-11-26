@@ -185,7 +185,6 @@ def train(args):
                          'num_workers': 8,
                          'use_multiple_gpu': False}))
     depth_model.load('monodepth_resnet18_001.pth')
-    depth_model.eval()
     if args.cuda:
         style_model.cuda()
         vgg.cuda()
