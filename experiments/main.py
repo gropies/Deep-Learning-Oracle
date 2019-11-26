@@ -239,7 +239,7 @@ def train(args):
             for m in range(len(features_y)):
                 gram_y = utils.gram_matrix(features_y[m])
                 gram_s = Variable(gram_style[m].data, requires_grad=False).repeat(args.batch_size, 1, 1, 1)
-                style_loss += args.style_weight * mse_loss(gram_y, gram_s[:n_batch, :, :])
+                style_loss += args.style_weight * mse_loss(gram_y.reshape(gram_y.size(0),1,gram_y.size(1),gram_y.size(2)), gram_s[:n_batch, :, :])
 
             total_loss = content_loss + style_loss + laplacian_weight * laplacian_loss + depth_loss + edge_weight * edge_loss
             total_loss.backward()
