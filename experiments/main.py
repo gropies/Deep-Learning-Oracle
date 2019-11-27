@@ -197,6 +197,7 @@ def train(args):
         agg_content_loss = 0.
         agg_style_loss = 0.
         count = 0
+        loss_list = []
         for batch_id, (x, _) in enumerate(train_loader):
             n_batch = len(x)
             count += n_batch
@@ -242,6 +243,7 @@ def train(args):
                 style_loss += args.style_weight * mse_loss(gram_y.reshape(gram_y.size(0),1,gram_y.size(1),gram_y.size(2)), gram_s[:n_batch, :, :])
 
             total_loss = content_loss + style_loss + laplacian_weight * laplacian_loss + depth_loss + edge_weight * edge_loss
+            loss_list.append(total_loss)
             total_loss.backward()
             optimizer.step()
 
@@ -270,6 +272,14 @@ def train(args):
                 style_model.train()
                 style_model.cuda()
                 tbar.set_description("\nCheckpoint, trained model saved at", save_model_path)
+
+    # save loss for every epoch
+    save_loss_filename = "Loss_" + \
+    str(time.ctime()).replace(' ', '_') + ".txt"  
+    with open(save_loss_filename) as file:
+        for i in range(len(loss_list)):
+            file.write(i+","+loss_list[i])
+            file.write("\n")
 
     # save model
     style_model.eval()
