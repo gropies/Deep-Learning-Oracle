@@ -84,16 +84,14 @@ class MonodepthLoss(nn.modules.Module):
     def forward(self, input,target):
         """
         Args:
-            target [left, right]
+            target content image disparity
         Return:
             (float): The loss
         """
-        left, right = target
+        left = [d[:, 0, :, :].unsqueeze(1) for d in target]
+        right = [d[:, 1, :, :].unsqueeze(1) for d in target]
         left_pyramid = self.scale_pyramid(left, self.n)
         right_pyramid = self.scale_pyramid(right, self.n)
-
-        disp_left_est = [d[:, 0, :, :].unsqueeze(1) for d in input]
-        disp_right_est = [d[:, 1, :, :].unsqueeze(1) for d in input]
 
         self.disp_left_est = disp_left_est
         self.disp_right_est = disp_right_est

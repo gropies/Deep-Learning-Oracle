@@ -233,7 +233,8 @@ def train(args):
             laplacian_loss = laploss(y,xc)
 
             depth_left = depth_model.model(y)
-            depth_loss = deploss(depth_left,[y,xc])
+            content = depth_model.model(xc)
+            depth_loss = deploss(depth_left,content)
 
 
             style_loss = 0.
