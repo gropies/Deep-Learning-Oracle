@@ -234,7 +234,7 @@ def train(args):
 
             depth_left = depth_model.model(y)
             content = depth_model.model(xc)
-            depth_loss = deploss(depth_left,content)
+            depth_loss = deploss(depth_left,xc,content)
 
 
             style_loss = 0.
@@ -277,9 +277,9 @@ def train(args):
     # save loss for every epoch
     save_loss_filename = "Loss_" + \
     str(time.ctime()).replace(' ', '_') + ".txt"  
-    with open(save_loss_filename) as file:
+    with open(save_loss_filename,'w') as file:
         for i in range(len(loss_list)):
-            file.write(i+","+loss_list[i])
+            file.write(str(i)+","+str(loss_list[i]))
             file.write("\n")
 
     # save model
@@ -343,8 +343,7 @@ def fast_evaluate(args, basedir, contents, idx = 0):
     if args.cuda:
         style_model.cuda()
     
-    style_loader = StyleLoader(args.style_folder, args.style_size, 
-        cuda=args.cuda)
+    style_loader = StyleLoader(args.style_folder, args.style_size, cuda=args.cuda)
 
     for content_image in contents:
         idx += 1
