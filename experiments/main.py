@@ -1,12 +1,5 @@
 """
 ## Quoted From: https://github.com/zhanghang1989/PyTorch-Multi-Style-Transfer
-## Created by: Hang Zhang
-## ECE Department, Rutgers University
-## Email: zhang.hang@rutgers.edu
-## Copyright (c) 2017
-##
-## This source code is licensed under the MIT-style license found in the
-## LICENSE file in the root directory of this source tree 
 """
 
 import os
@@ -192,6 +185,7 @@ def train(args):
 
     style_loader = utils.StyleLoader(args.style_folder, args.style_size)
 
+
     tbar = trange(args.epochs)
     for e in tbar:
         style_model.train()
@@ -206,6 +200,7 @@ def train(args):
             x = Variable(utils.preprocess_batch(x))
             if args.cuda:
                 x = x.cuda()
+
 
             style_v = style_loader.get(batch_id)
             style_model.setTarget(style_v)
