@@ -140,7 +140,8 @@ def train(args):
     mse_loss = torch.nn.MSELoss()
     laploss = lap_loss.LapLoss()
     laplacian_weight = 1
-    edge_weight = 2.5
+    edge_weight = 1
+    depth_weight = 1
     deploss = dl.MonodepthLoss(
                 n=4,
                 SSIM_w=0.85,
@@ -243,7 +244,7 @@ def train(args):
                 gram_s = Variable(gram_style[m].data, requires_grad=False).repeat(args.batch_size, 1, 1, 1)
                 style_loss += args.style_weight * mse_loss(gram_y.reshape(gram_y.size(0),1,gram_y.size(1),gram_y.size(2)), gram_s[:n_batch, :, :])
 
-            total_loss = content_loss + style_loss + laplacian_weight * laplacian_loss + depth_loss + edge_weight * edge_loss
+            total_loss = content_loss + style_loss + laplacian_weight * laplacian_loss + depth_weight *depth_loss + edge_weight * edge_loss
             loss_list.append(total_loss)
             total_loss.backward()
             optimizer.step()
